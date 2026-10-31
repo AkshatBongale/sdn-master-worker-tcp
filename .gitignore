@@ -8,3 +8,4 @@ __pycache__/
 *.pyc
 
 # keep results/ (csv, summary, chart, logs) as evidence
+results/
