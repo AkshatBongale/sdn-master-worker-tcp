@@ -71,9 +71,11 @@ sudo python3 topology.py
 mininet> pingall
 ```
 
-<p align="center"> 
-<img src="assets/tc1_pingall.png" alt="Pingall Test Case" width="750"> 
-</p> 
+<p align="center">
+  <img src="assets/tc1_pingall.png" alt="Pingall Test Case" width="750">
+  <br>
+  <em>TC1 — Connectivity: 0% packet loss (12/12 received)</em>
+</p>
 
 <!-- Expected: Results: 0% dropped (12/12 received) -->
 
@@ -85,8 +87,10 @@ mininet> source run.cmds
 mininet> h1 cat master.log
 ```
 
-<p align="center"> 
-<img src="assets/tc3_load_balance.png" alt="Load Balancing - DONE with even task split" width="750"> 
+<p align="center">
+  <img src="assets/tc3_load_balance.png" alt="Load Balancing" width="750">
+  <br>
+  <em>TC3 — Load balancing: all 20 tasks finished in 7.5s, split evenly (7/7/6)</em>
 </p>
 
 ---
@@ -106,9 +110,16 @@ mininet> h1 cat master.log
 | TC9 | Load-aware path steering | Normal run, watch Ryu | `[REROUTE] … (worker overload)` |
 | TC10 | Controller absent | Run master without Ryu | `Controller not reachable`; tasks still complete |
 
-<p align="center"> 
-<img src="assets/tc4_worker_kill.png" alt="TC4 - Worker Crash and Recovery" width="750"> </p> <p align="center"> 
-<img src="assets/tc7_link_failure.png" alt="TC7 - Link Failure and Reroute" width="750"> 
+<p align="center">
+  <img src="assets/tc4_worker_kill.png" alt="Worker Crash and Recovery" width="750">
+  <br>
+  <em>TC4 — Worker crash: Worker-2 killed mid-run, tasks re-queued, all 20 completed</em>
+</p>
+
+<p align="center">
+  <img src="assets/tc7_link_failure.png" alt="Link Failure and Reroute" width="750">
+  <br>
+  <em>TC7 — Link failure: s1↔s2 brought down mid-run, SDN rerouted via s3, all 20 tasks completed</em>
 </p>
 
 ---
@@ -123,7 +134,9 @@ sudo python3 benchmark.py
 ```
 
 <p align="center">
-  <img src="assets/charts.png" alt="Benchmark Chart - Task Completion Time and Avg RTT" width="850">
+  <img src="assets/charts.png" alt="Benchmark Chart" width="850">
+  <br>
+  <em>Task completion time and average heartbeat RTT — static routing vs dynamic SDN across 3 scenarios</em>
 </p>
 
 | Scenario | Mode | Runs finished | Tasks completed | TCT (s) | Longest stall (s) | Recovery after event (s) | Avg heartbeat RTT (ms) | Task timeouts |
