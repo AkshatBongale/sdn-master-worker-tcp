@@ -43,6 +43,7 @@ A custom Ryu (OpenFlow 1.3) SDN controller reacts to application events and netw
 | `benchmark.py`      | Automated static vs SDN benchmark — outputs `results/`                        |
 | `run.cmds`          | Mininet CLI script — starts master + 3 workers                                |     
 
+
 ---
 
 ## Setup
@@ -96,6 +97,8 @@ mininet> h1 cat master.log
 ---
 
 ## Test cases
+
+See [DEMO.md](DEMO.md) for step-by-step instructions to run each test case.
 
 | # | Test | How to run | Expected output |
 |---|---|---|---|
