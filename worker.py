@@ -4,7 +4,6 @@ import time
 import threading
 import sys
 import queue
-import os
 
 HOST      = '10.0.0.1'   # master IP inside Mininet
 PORT      = 8888
@@ -43,16 +42,11 @@ def send_heartbeats(sock):
 
 
 def process_tasks(sock):
-    hang_id = os.environ.get("HANG_TASK_ID")   
     while True:
         task    = task_inbox.get()
         task_id = task.get("task_id")
         numbers = task.get("numbers")
         print(f"[{WORKER_ID}] Processing task {task_id} with data {numbers}...")
-        if hang_id and str(task_id) == hang_id:
-            print(f"[{WORKER_ID}] HANGING on task {task_id} deliberately (test hook)...")
-            while True:
-                time.sleep(3600)  
         time.sleep(1)
         result = sum(numbers)
         try:

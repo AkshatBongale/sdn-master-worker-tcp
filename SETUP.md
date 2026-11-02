@@ -64,6 +64,7 @@ sudo python3 topology.py
 ## 6. Clone the repo into the VM
 
 ```bash
+# Replace YOUR_USERNAME with your GitHub username
 git clone https://github.com/YOUR_USERNAME/project-29-sdn-task-system.git
 cd project-29-sdn-task-system
 ```
