@@ -22,7 +22,7 @@ SCENARIOS = {
     'worker_kill':  (3.0,  "Worker-2 process is killed 3 s into the run"),
     'task_hang':    (None, "Worker-3 hangs forever on task 110 (task-timeout path)"),
 }
-DEFAULT_SCENARIOS = ['normal', 'link_failure', 'worker_kill']
+DEFAULT_SCENARIOS = ['normal', 'link_failure', 'worker_kill', 'task_hang']
 WORKERS = [('h2', 'Worker-2'), ('h3', 'Worker-3'), ('h4', 'Worker-4')]
 
 CSV_FIELDS = ['scenario', 'mode', 'run', 'valid', 'done', 'completed', 'total', 'tct_s',

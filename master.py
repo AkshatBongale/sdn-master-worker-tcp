@@ -19,7 +19,7 @@ OVERLOAD_HIGH     = 3
 OVERLOAD_LOW      = 1
 
 SDN_SOCKET  = '/tmp/sdn_events.sock'
-EVENTS_PATH = 'events.jsonl'
+EVENTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'events.jsonl')
 
 active_workers    = {}
 task_queue        = [{"task_id": 100 + i, "numbers": [i * 10, i * 20]} for i in range(1, NUM_TASKS + 1)]
