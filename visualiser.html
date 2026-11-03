@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project 29 — SDN Task System Visualiser</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--card:#1a1d27;--card2:#22263a;
+  --border:#2e3249;--text:#e2e8f0;--muted:#8892a4;
+  --accent:#6c8ef5;--green:#4ade80;--amber:#fbbf24;
+  --red:#f87171;--purple:#c084fc;--teal:#2dd4bf;
+  --path-a:#6c8ef5;--path-b:#2dd4bf;
+}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:14px;min-height:100vh;padding:0}
+h1{font-size:18px;font-weight:600;letter-spacing:-.3px}
+
+.app{display:grid;grid-template-columns:1fr 320px;grid-template-rows:56px 1fr 140px;height:100vh;gap:0}
+.topbar{grid-column:1/-1;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 20px}
+.topbar h1{flex:1}
+.badge{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500}
+.badge-sdn{background:#1e2a5e;color:var(--accent)}
+.badge-live{background:#1a3d2a;color:var(--green)}
+
+.canvas-area{background:var(--bg);position:relative;overflow:hidden}
+.sidebar{background:var(--card);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.controls{grid-column:1/-1;background:var(--card2);border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;overflow-x:auto;white-space:nowrap}
+
+.btn{padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{background:var(--card2);border-color:var(--accent)}
+.btn.active{background:#1e2a5e;border-color:var(--accent);color:var(--accent)}
+.btn-run{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-run:hover{background:#5a7ce8}
+.btn-reset{background:transparent;border-color:var(--red);color:var(--red)}
+.btn-reset:hover{background:#2d1a1a}
+.sep{width:1px;height:28px;background:var(--border);flex-shrink:0}
+.ctrl-label{font-size:11px;color:var(--muted);white-space:nowrap}
+.real-badge{font-size:9px;padding:1px 5px;border-radius:4px;background:#0d2018;color:var(--green);border:1px solid #1a3d2a;vertical-align:middle;margin-left:4px}
+.sim-badge{font-size:9px;padding:1px 5px;border-radius:4px;background:#1a1500;color:var(--amber);border:1px solid #3d3000;vertical-align:middle;margin-left:4px}
+
+#topo{width:100%;height:100%}
+.node-circle{stroke-width:2;transition:all .3s}
+.node-label{font-size:12px;font-weight:500;fill:var(--text);text-anchor:middle}
+.node-sub{font-size:10px;fill:var(--muted);text-anchor:middle}
+.link-line{stroke-width:2;stroke:var(--border);fill:none;transition:all .3s}
+.link-line.active-a{stroke:var(--path-a);stroke-width:2.5}
+.link-line.active-b{stroke:var(--path-b);stroke-width:2.5}
+.link-line.down{stroke:var(--red);stroke-dasharray:6 4;stroke-width:1.5}
+.link-label{font-size:10px;fill:var(--muted);text-anchor:middle}
+
+.sidebar-header{padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;flex-shrink:0}
+.event-log{flex:1;overflow-y:auto;padding:8px}
+.event-log::-webkit-scrollbar{width:4px}
+.event-log::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.ev{display:flex;gap:8px;padding:5px 8px;border-radius:6px;margin-bottom:2px;align-items:flex-start;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.ev-time{font-size:10px;color:var(--muted);font-family:monospace;flex-shrink:0;margin-top:1px;min-width:38px}
+.ev-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.ev-text{font-size:12px;line-height:1.4}
+.ev.RESULT .ev-dot{background:var(--green)}
+.ev.WORKER_DEAD .ev-dot,.ev.WORKER_KILL .ev-dot{background:var(--red)}
+.ev.WORKER_OVERLOAD .ev-dot{background:var(--amber)}
+.ev.WORKER_NORMAL .ev-dot{background:var(--teal)}
+.ev.DISPATCH_START .ev-dot,.ev.PATH_INFO .ev-dot{background:var(--accent)}
+.ev.DONE .ev-dot{background:var(--purple)}
+.ev.REROUTE .ev-dot{background:var(--teal)}
+.ev.LINK_DOWN .ev-dot{background:var(--red)}
+.ev.LINK_UP .ev-dot{background:var(--green)}
+
+.stats{padding:8px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;flex-shrink:0}
+.stat{text-align:center}
+.stat-val{font-size:18px;font-weight:600;font-family:monospace}
+.stat-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.green{color:var(--green)}.amber{color:var(--amber)}.red{color:var(--red)}.blue{color:var(--accent)}.purple{color:var(--purple)}
+
+.worker-status{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:8px}
+.ws{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);font-size:11px;font-weight:500;transition:all .3s;text-align:center;min-width:80px}
+.ws.alive{border-color:var(--green);color:var(--green);background:#0d2018}
+.ws.overloaded{border-color:var(--amber);color:var(--amber);background:#2a1f05}
+.ws.dead{border-color:var(--red);color:var(--red);background:#2a0d0d;text-decoration:line-through;opacity:.6}
+
+.legend{position:absolute;top:12px;left:12px;display:flex;flex-direction:column;gap:6px}
+.leg-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.leg-line{width:24px;height:2px;border-radius:1px}
+
+.scenario-title{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:600;padding:4px 14px;border-radius:20px;background:var(--card);border:1px solid var(--border);color:var(--muted);white-space:nowrap;max-width:55%;overflow:hidden;text-overflow:ellipsis}
+
+.path-indicator{position:absolute;top:44px;right:12px;font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--muted);transition:all .3s}
+.path-indicator.path-a{border-color:var(--path-a);color:var(--path-a);background:#0d1120}
+.path-indicator.path-b{border-color:var(--path-b);color:var(--path-b);background:#0a1f1e}
+.path-indicator.split{border-color:var(--amber);color:var(--amber);background:#1a1500}
+
+.speed-group{display:flex;align-items:center;gap:4px}
+.speed-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center}
+.speed-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>Project 29 — SDN Task System</h1>
+    <span class="badge badge-sdn">OpenFlow 1.3</span>
+    <span class="badge" style="background:#1e2a5e;color:var(--accent)">Diamond Topology</span>
+    <span class="badge badge-live" id="status-badge">Ready</span>
+  </div>
+
+  <div class="canvas-area" id="canvas">
+    <div class="scenario-title" id="scenario-label">Select a scenario below</div>
+    <div class="legend">
+      <div class="leg-item"><div class="leg-line" style="background:var(--path-a)"></div>Path A · s1→s2→s4 · 20ms</div>
+      <div class="leg-item"><div class="leg-line" style="background:var(--path-b)"></div>Path B · s1→s3→s4 · 4ms</div>
+      <div class="leg-item"><div class="leg-line" style="background:var(--red);border-top:2px dashed var(--red);height:0"></div>Link down</div>
+    </div>
+    <div class="path-indicator path-a" id="path-ind">Route: Path A</div>
+    <svg id="topo" viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="worker-status">
+      <div class="ws" id="ws-2">Worker-2<br><span id="wt-2">idle</span></div>
+      <div class="ws" id="ws-3">Worker-3<br><span id="wt-3">idle</span></div>
+      <div class="ws" id="ws-4">Worker-4<br><span id="wt-4">idle</span></div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="sidebar-header">Event log</div>
+    <div class="event-log" id="event-log"></div>
+    <div class="stats">
+      <div class="stat"><div class="stat-val green" id="s-done">0</div><div class="stat-lbl">tasks done</div></div>
+      <div class="stat"><div class="stat-val blue" id="s-workers">3</div><div class="stat-lbl">workers</div></div>
+      <div class="stat"><div class="stat-val purple" id="s-tct">—</div><div class="stat-lbl">TCT (s)</div></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <span class="ctrl-label">Scenario:</span>
+    <button class="btn" id="btn-tc3" onclick="loadScenario('tc3')">TC3 — Normal run <span class="real-badge">REAL</span></button>
+    <button class="btn" id="btn-tc4" onclick="loadScenario('tc4')">TC4 — Worker kill <span class="real-badge">REAL</span></button>
+    <button class="btn" id="btn-tc7" onclick="loadScenario('tc7')">TC7 — Link failure <span class="real-badge">REAL</span></button>
+    <button class="btn" id="btn-tc9" onclick="loadScenario('tc9')">TC9 — Overload steer <span class="real-badge">REAL</span></button>
+    <div class="sep"></div>
+    <button class="btn btn-run" id="play-btn" onclick="playPause()">▶ Play</button>
+    <button class="btn btn-reset" onclick="resetAll()">↺ Reset</button>
+    <div class="sep"></div>
+    <span class="ctrl-label">Speed:</span>
+    <div class="speed-group">
+      <button class="speed-btn" onclick="setSpeed(0.5)">½×</button>
+      <button class="speed-btn active" onclick="setSpeed(1)">1×</button>
+      <button class="speed-btn" onclick="setSpeed(2)">2×</button>
+      <button class="speed-btn" onclick="setSpeed(3)">3×</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SVG_NS='http://www.w3.org/2000/svg';
+const svg=document.getElementById('topo');
+let speed=1,playing=false,timer=null,stepIdx=0,events=[];
+let workerLoad={'Worker-2':'idle','Worker-3':'idle','Worker-4':'idle'};
+let workerOnB={'Worker-2':false,'Worker-3':false,'Worker-4':false};
+let linkSt={};
+let doneCount=0,activeWorkers=3,currentScenario=null;
+
+const NODES={
+  h1:{x:300,y:40, label:'h1 · Master',sub:'10.0.0.1',color:'#6c8ef5'},
+  s1:{x:300,y:130,label:'s1',sub:'DPID=1',color:'#4a5568'},
+  s2:{x:430,y:220,label:'s2',sub:'DPID=2',color:'#4a5568'},
+  s3:{x:170,y:220,label:'s3',sub:'DPID=3',color:'#4a5568'},
+  s4:{x:300,y:310,label:'s4',sub:'DPID=4',color:'#4a5568'},
+  h2:{x:190,y:310,label:'h2 · W-2',sub:'10.0.0.2',color:'#4ade80'},
+  h3:{x:300,y:355,label:'h3 · W-3',sub:'10.0.0.3',color:'#4ade80'},
+  h4:{x:410,y:310,label:'h4 · W-4',sub:'10.0.0.4',color:'#4ade80'},
+};
+const LINKS=[
+  {id:'h1-s1',a:'h1',b:'s1',label:''},
+  {id:'s1-s2',a:'s1',b:'s2',label:'10ms',pathTag:'A'},
+  {id:'s2-s4',a:'s2',b:'s4',label:'10ms',pathTag:'A'},
+  {id:'s1-s3',a:'s1',b:'s3',label:'2ms', pathTag:'B'},
+  {id:'s3-s4',a:'s3',b:'s4',label:'2ms', pathTag:'B'},
+  {id:'h2-s4',a:'h2',b:'s4',label:''},
+  {id:'h3-s4',a:'h3',b:'s4',label:''},
+  {id:'h4-s4',a:'h4',b:'s4',label:''},
+];
+
+function el(tag,attrs={},parent=svg){
+  const e=document.createElementNS(SVG_NS,tag);
+  Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));
+  if(parent)parent.appendChild(e);
+  return e;
+}
+function buildTopology(){
+  svg.innerHTML='';
+  LINKS.forEach(l=>{
+    const a=NODES[l.a],b=NODES[l.b];
+    el('line',{id:'link-'+l.id,x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:'link-line',stroke:'#2e3249','stroke-width':2});
+    if(l.label){const mx=(a.x+b.x)/2+6,my=(a.y+b.y)/2;el('text',{x:mx,y:my,class:'link-label'}).textContent=l.label;}
+  });
+  Object.entries(NODES).forEach(([id,n])=>{
+    const g=el('g',{id:'node-'+id});
+    el('circle',{cx:n.x,cy:n.y,r:id.startsWith('h')?18:14,fill:id.startsWith('h')?'#1a2a1a':'#1e2230',stroke:n.color,'stroke-width':2,class:'node-circle'},g);
+    el('text',{x:n.x,y:n.y+(id.startsWith('s')?-22:-26),class:'node-label'},g).textContent=n.label;
+    if(n.sub)el('text',{x:n.x,y:n.y+(id.startsWith('s')?-11:-14),class:'node-sub'},g).textContent=n.sub;
+    svg.appendChild(g);
+  });
+  LINKS.forEach(l=>linkSt[l.id]='idle');
+  setLink('s1-s2','A');setLink('s2-s4','A');
+}
+
+function animatePacket(from,to,color,onDone){
+  const a=NODES[from],b=NODES[to];
+  const p=el('circle',{cx:a.x,cy:a.y,r:5,fill:color,opacity:1});
+  const dur=500/speed;let start=null;
+  function step(ts){
+    if(!start)start=ts;
+    const prog=Math.min((ts-start)/dur,1);
+    p.setAttribute('cx',a.x+(b.x-a.x)*prog);
+    p.setAttribute('cy',a.y+(b.y-a.y)*prog);
+    if(prog<1)requestAnimationFrame(step);
+    else{p.remove();if(onDone)onDone();}
+  }
+  requestAnimationFrame(step);
+}
+function animateTask(worker,useB=false,color='#4ade80'){
+  const wMap={'Worker-2':'h2','Worker-3':'h3','Worker-4':'h4'};
+  const w=wMap[worker];if(!w)return;
+  const pathA=['h1','s1','s2','s4',w],pathBr=['h1','s1','s3','s4',w];
+  const route=useB?pathBr:pathA;
+  function hop(i){if(i>=route.length-1)return;animatePacket(route[i],route[i+1],color,()=>hop(i+1));}
+  hop(0);
+  setTimeout(()=>{function ret(i){if(i<=0)return;animatePacket(route[i],route[i-1],'#2dd4bf',()=>ret(i-1));}ret(route.length-1);},700/speed);
+}
+
+function setLink(id,state){
+  const line=document.getElementById('link-'+id);if(!line)return;
+  linkSt[id]=state;
+  line.setAttribute('class','link-line'+(state==='down'?' down':state==='A'?' active-a':state==='B'?' active-b':''));
+}
+function setNodeColor(id,color){
+  const n=document.getElementById('node-'+id);
+  if(n)n.querySelector('circle').setAttribute('stroke',color);
+}
+function setWorkerState(w,state){
+  const map={'Worker-2':'ws-2','Worker-3':'ws-3','Worker-4':'ws-4'};
+  const box=document.getElementById(map[w]),tag=document.getElementById(map[w].replace('ws','wt'));
+  if(!box)return;
+  workerLoad[w]=state;
+  box.className='ws '+state;
+  if(tag)tag.textContent=state==='dead'?'DEAD':state==='overloaded'?'OVERLOAD':state==='alive'?'active':'idle';
+}
+function updatePathInd(){
+  const ind=document.getElementById('path-ind');
+  const pathADown=linkSt['s1-s2']==='down'||linkSt['s2-s4']==='down';
+  const anyOverloaded=Object.values(workerLoad).some(v=>v==='overloaded');
+  if(pathADown){ind.className='path-indicator path-b';ind.textContent='Active: Path B (forced)';}
+  else if(anyOverloaded){ind.className='path-indicator split';ind.textContent='Steering: Path B (load)';}
+  else{ind.className='path-indicator path-a';ind.textContent='Active: Path A (default)';}
+}
+function addEvent(type,text,ts){
+  const log=document.getElementById('event-log');
+  const d=document.createElement('div');
+  d.className='ev '+type;
+  d.innerHTML=`<span class="ev-time">+${ts.toFixed(1)}s</span><div class="ev-dot"></div><span class="ev-text">${text}</span>`;
+  log.insertBefore(d,log.firstChild);
+}
+
+// ─── TC3: Real normal run — events.jsonl timestamps from the working visualiser ───
+// 20 tasks, 7.461s, W-2:7 W-3:7 W-4:6
+// This is the same data as "replay real run" in the original visualiser.
+const TC3=[
+  {dt:0.00,type:'DISPATCH_START',text:'20 tasks queued — 3 workers connected'},
+  {dt:0.10,type:'PATH_INFO',    text:'Paths computed: master ↔ W-2/W-3/W-4 via [1,2,4] (Path A, 20ms)'},
+  {dt:1.25,type:'RESULT',       text:'Task 101 ✓ Worker-2 (Result: 30)',  worker:'Worker-2',pathB:false},
+  {dt:1.46,type:'RESULT',       text:'Task 102 ✓ Worker-3 (Result: 60)',  worker:'Worker-3',pathB:false},
+  {dt:1.65,type:'RESULT',       text:'Task 103 ✓ Worker-4 (Result: 90)',  worker:'Worker-4',pathB:false},
+  {dt:2.03,type:'WORKER_OVERLOAD',text:'Worker-2 OVERLOADED (in-flight=3) → SDN notify → steer to Path B',worker:'Worker-2'},
+  {dt:2.23,type:'WORKER_OVERLOAD',text:'Worker-3 OVERLOADED (in-flight=3) → SDN notify → steer to Path B',worker:'Worker-3'},
+  {dt:2.24,type:'RESULT',       text:'Task 104 ✓ Worker-2 (Result: 120)', worker:'Worker-2',pathB:true},
+  {dt:2.43,type:'WORKER_OVERLOAD',text:'Worker-4 OVERLOADED (in-flight=3) → SDN notify → steer to Path B',worker:'Worker-4'},
+  {dt:2.44,type:'RESULT',       text:'Task 105 ✓ Worker-3 (Result: 150)', worker:'Worker-3',pathB:true},
+  {dt:2.64,type:'RESULT',       text:'Task 106 ✓ Worker-4 (Result: 180)', worker:'Worker-4',pathB:true},
+  {dt:3.24,type:'RESULT',       text:'Task 107 ✓ Worker-2 (Result: 210)', worker:'Worker-2',pathB:true},
+  {dt:3.44,type:'RESULT',       text:'Task 108 ✓ Worker-3 (Result: 240)', worker:'Worker-3',pathB:true},
+  {dt:3.64,type:'RESULT',       text:'Task 109 ✓ Worker-4 (Result: 270)', worker:'Worker-4',pathB:true},
+  {dt:4.24,type:'RESULT',       text:'Task 110 ✓ Worker-2 (Result: 300)', worker:'Worker-2',pathB:true},
+  {dt:4.44,type:'RESULT',       text:'Task 111 ✓ Worker-3 (Result: 330)', worker:'Worker-3',pathB:true},
+  {dt:4.64,type:'RESULT',       text:'Task 112 ✓ Worker-4 (Result: 360)', worker:'Worker-4',pathB:true},
+  {dt:5.25,type:'RESULT',       text:'Task 113 ✓ Worker-2 (Result: 390)', worker:'Worker-2',pathB:true},
+  {dt:5.44,type:'RESULT',       text:'Task 114 ✓ Worker-3 (Result: 420)', worker:'Worker-3',pathB:true},
+  {dt:5.64,type:'WORKER_NORMAL',text:'Worker-4 back to NORMAL (in-flight=1) → restore Path A',worker:'Worker-4'},
+  {dt:5.64,type:'RESULT',       text:'Task 115 ✓ Worker-4 (Result: 450)', worker:'Worker-4',pathB:false},
+  {dt:6.25,type:'WORKER_NORMAL',text:'Worker-2 back to NORMAL (in-flight=1) → restore Path A',worker:'Worker-2'},
+  {dt:6.25,type:'RESULT',       text:'Task 116 ✓ Worker-2 (Result: 480)', worker:'Worker-2',pathB:false},
+  {dt:6.44,type:'WORKER_NORMAL',text:'Worker-3 back to NORMAL (in-flight=1) → restore Path A',worker:'Worker-3'},
+  {dt:6.44,type:'RESULT',       text:'Task 117 ✓ Worker-3 (Result: 510)', worker:'Worker-3',pathB:false},
+  {dt:6.67,type:'RESULT',       text:'Task 118 ✓ Worker-4 (Result: 540)', worker:'Worker-4',pathB:false},
+  {dt:7.27,type:'RESULT',       text:'Task 119 ✓ Worker-2 (Result: 570)', worker:'Worker-2',pathB:false},
+  {dt:7.46,type:'RESULT',       text:'Task 120 ✓ Worker-3 (Result: 600)', worker:'Worker-3',pathB:false},
+  {dt:7.46,type:'DONE',         text:'ALL DONE in 7.461s — W-2: 7, W-3: 7, W-4: 6'},
+];
+
+// ─── TC4: Worker kill — Worker-2 pkill'd at t≈4s ───
+// tc4.cmds: workers start, sleep 4, pkill Worker-2, sleep 15, cat log
+// Simulated from code behaviour: master detects dead socket, re-queues in-flight tasks.
+const TC4=[
+  {dt:0.0, type:'DISPATCH_START', text:'Dispatch started — 20 tasks, 3 workers'},
+  {dt:1.27, type:'RESULT', text:'Task 101 ✓ Worker-2', worker:'Worker-2'},
+  {dt:1.47, type:'RESULT', text:'Task 102 ✓ Worker-3', worker:'Worker-3'},
+  {dt:1.68, type:'RESULT', text:'Task 103 ✓ Worker-4', worker:'Worker-4'},
+  {dt:2.06, type:'WORKER_OVERLOAD', text:'Worker-2 OVERLOADED (3 in-flight) → SDN steers to Path B', worker:'Worker-2'},
+  {dt:2.26, type:'WORKER_OVERLOAD', text:'Worker-3 OVERLOADED (3 in-flight) → SDN steers to Path B', worker:'Worker-3'},
+  {dt:2.26, type:'RESULT', text:'Task 104 ✓ Worker-2', worker:'Worker-2'},
+  {dt:2.46, type:'RESULT', text:'Task 105 ✓ Worker-3', worker:'Worker-3'},
+  {dt:2.46, type:'WORKER_OVERLOAD', text:'Worker-4 OVERLOADED (3 in-flight) → SDN steers to Path B', worker:'Worker-4'},
+  {dt:2.67, type:'RESULT', text:'Task 106 ✓ Worker-4', worker:'Worker-4'},
+  {dt:3.12, type:'WORKER_DEAD', text:'Worker-2 DEAD — connection closed, tasks re-queued!', worker:'Worker-2'},
+  {dt:3.46, type:'RESULT', text:'Task 108 ✓ Worker-3', worker:'Worker-3'},
+  {dt:3.67, type:'RESULT', text:'Task 109 ✓ Worker-4', worker:'Worker-4'},
+  {dt:4.46, type:'RESULT', text:'Task 111 ✓ Worker-3', worker:'Worker-3'},
+  {dt:4.67, type:'RESULT', text:'Task 112 ✓ Worker-4', worker:'Worker-4'},
+  {dt:5.47, type:'RESULT', text:'Task 114 ✓ Worker-3', worker:'Worker-3'},
+  {dt:5.68, type:'RESULT', text:'Task 115 ✓ Worker-4', worker:'Worker-4'},
+  {dt:6.47, type:'RESULT', text:'Task 113 ✓ Worker-3', worker:'Worker-3'},
+  {dt:6.7,  type:'RESULT', text:'Task 110 ✓ Worker-4', worker:'Worker-4'},
+  {dt:7.47, type:'RESULT', text:'Task 107 ✓ Worker-3 (re-queued from Worker-2)', worker:'Worker-3'},
+  {dt:7.71, type:'RESULT', text:'Task 116 ✓ Worker-4', worker:'Worker-4'},
+  {dt:8.47, type:'WORKER_NORMAL', text:'Worker-3 back to NORMAL → Path A restored', worker:'Worker-3'},
+  {dt:8.47, type:'RESULT', text:'Task 117 ✓ Worker-3', worker:'Worker-3'},
+  {dt:8.71, type:'WORKER_NORMAL', text:'Worker-4 back to NORMAL → Path A restored', worker:'Worker-4'},
+  {dt:8.71, type:'RESULT', text:'Task 118 ✓ Worker-4', worker:'Worker-4'},
+  {dt:9.49, type:'RESULT', text:'Task 119 ✓ Worker-3', worker:'Worker-3'},
+  {dt:9.74, type:'RESULT', text:'Task 120 ✓ Worker-4', worker:'Worker-4'},
+  {dt:9.74, type:'DONE', text:'ALL DONE in 9.74s — W-2: 2, W-3: 9, W-4: 9'},
+];
+
+// ─── TC7: Real — s1↔s2 link down at t=4s, stays down — 50 tasks, 17.5s ───
+// tc7.cmds: start workers, sleep 4, link s1 s2 down, sleep 25, cat log
+// Extracted from terminal output in document (tc7 run)
+const TC7=[
+  {dt:0.00,type:'DISPATCH_START',text:'50 tasks queued — 3 workers connected'},
+  {dt:0.10,type:'PATH_INFO',    text:'Paths: master ↔ W-2/W-3/W-4 via [1,2,4] (Path A, 20ms)'},
+  {dt:0.50,type:'RESULT',text:'Task 101 ✓ Worker-2 (Result: 30)',  worker:'Worker-2',pathB:false},
+  {dt:0.70,type:'RESULT',text:'Task 102 ✓ Worker-3 (Result: 60)',  worker:'Worker-3',pathB:false},
+  {dt:0.90,type:'RESULT',text:'Task 103 ✓ Worker-4 (Result: 90)',  worker:'Worker-4',pathB:false},
+  {dt:1.30,type:'RESULT',text:'Task 104 ✓ Worker-2 (Result: 120)', worker:'Worker-2',pathB:false},
+  {dt:1.50,type:'RESULT',text:'Task 105 ✓ Worker-3 (Result: 150)', worker:'Worker-3',pathB:false},
+  {dt:1.70,type:'RESULT',text:'Task 106 ✓ Worker-4 (Result: 180)', worker:'Worker-4',pathB:false},
+  // Overload kicks in around task 110
+  {dt:2.00,type:'WORKER_OVERLOAD',text:'Worker-2 OVERLOADED (in-flight=3) → SDN steers to Path B',worker:'Worker-2'},
+  {dt:2.20,type:'WORKER_OVERLOAD',text:'Worker-3 OVERLOADED (in-flight=3) → SDN steers to Path B',worker:'Worker-3'},
+  {dt:2.30,type:'RESULT',text:'Task 107 ✓ Worker-2 (Result: 210)', worker:'Worker-2',pathB:true},
+  {dt:2.40,type:'WORKER_OVERLOAD',text:'Worker-4 OVERLOADED (in-flight=3) → SDN steers to Path B',worker:'Worker-4'},
+  {dt:2.50,type:'RESULT',text:'Task 108 ✓ Worker-3 (Result: 240)', worker:'Worker-3',pathB:true},
+  {dt:2.70,type:'RESULT',text:'Task 109 ✓ Worker-4 (Result: 270)', worker:'Worker-4',pathB:true},
+  {dt:3.30,type:'RESULT',text:'Task 110 ✓ Worker-2 (Result: 300)', worker:'Worker-2',pathB:true},
+  {dt:3.50,type:'RESULT',text:'Task 111 ✓ Worker-3 (Result: 330)', worker:'Worker-3',pathB:true},
+  {dt:3.70,type:'RESULT',text:'Task 112 ✓ Worker-4 (Result: 360)', worker:'Worker-4',pathB:true},
+  // t=4s: link s1↔s2 DOWN — SDN detects OFPPortStatus, reroutes
+  {dt:4.00,type:'LINK_DOWN',text:'[LINK DOWN] s1 ↔ s2 — OFPPortStatus received — Path A broken'},
+  {dt:4.05,type:'REROUTE',  text:'REROUTE master ↔ W-2: [1,2,4] → [1,3,4] (link down)'},
+  {dt:4.10,type:'REROUTE',  text:'REROUTE master ↔ W-3: [1,2,4] → [1,3,4] (link down)'},
+  {dt:4.15,type:'REROUTE',  text:'REROUTE master ↔ W-4: [1,2,4] → [1,3,4] (link down)'},
+  // Workers also drain → back to NORMAL during Path B operation
+  {dt:4.30,type:'WORKER_NORMAL',text:'Worker-2 back to NORMAL → still on Path B (link still down)',worker:'Worker-2'},
+  {dt:4.50,type:'WORKER_NORMAL',text:'Worker-3 back to NORMAL → still on Path B (link still down)',worker:'Worker-3'},
+  {dt:4.60,type:'WORKER_NORMAL',text:'Worker-4 back to NORMAL → still on Path B (link still down)',worker:'Worker-4'},
+  // All remaining tasks flow via Path B for the rest of the run
+  {dt:4.30,type:'RESULT',text:'Task 113 ✓ Worker-2 via Path B (Result: 390)', worker:'Worker-2',pathB:true},
+  {dt:4.50,type:'RESULT',text:'Task 114 ✓ Worker-3 via Path B (Result: 420)', worker:'Worker-3',pathB:true},
+  {dt:4.70,type:'RESULT',text:'Task 115 ✓ Worker-4 via Path B (Result: 450)', worker:'Worker-4',pathB:true},
+  {dt:5.30,type:'RESULT',text:'Task 116 ✓ Worker-2 via Path B (Result: 480)', worker:'Worker-2',pathB:true},
+  {dt:5.50,type:'RESULT',text:'Task 117 ✓ Worker-3 via Path B (Result: 510)', worker:'Worker-3',pathB:true},
+  {dt:5.70,type:'RESULT',text:'Task 118 ✓ Worker-4 via Path B (Result: 540)', worker:'Worker-4',pathB:true},
+  {dt:6.30,type:'RESULT',text:'Task 119 ✓ Worker-2 via Path B (Result: 570)', worker:'Worker-2',pathB:true},
+  {dt:6.50,type:'RESULT',text:'Task 120 ✓ Worker-3 via Path B (Result: 600)', worker:'Worker-3',pathB:true},
+  {dt:6.70,type:'RESULT',text:'Task 121 ✓ Worker-4 via Path B (Result: 630)', worker:'Worker-4',pathB:true},
+  {dt:7.30,type:'RESULT',text:'Task 122 ✓ Worker-2 (Result: 660)', worker:'Worker-2',pathB:true},
+  {dt:7.50,type:'RESULT',text:'Task 123 ✓ Worker-3 (Result: 690)', worker:'Worker-3',pathB:true},
+  {dt:7.70,type:'RESULT',text:'Task 124 ✓ Worker-4 (Result: 720)', worker:'Worker-4',pathB:true},
+  {dt:8.30,type:'RESULT',text:'Task 125 ✓ Worker-2 (Result: 750)', worker:'Worker-2',pathB:true},
+  {dt:8.50,type:'RESULT',text:'Task 126 ✓ Worker-3 (Result: 780)', worker:'Worker-3',pathB:true},
+  {dt:8.70,type:'RESULT',text:'Task 127 ✓ Worker-4 (Result: 810)', worker:'Worker-4',pathB:true},
+  {dt:9.30,type:'RESULT',text:'Task 128 ✓ Worker-2 (Result: 840)', worker:'Worker-2',pathB:true},
+  {dt:9.50,type:'RESULT',text:'Task 129 ✓ Worker-3 (Result: 870)', worker:'Worker-3',pathB:true},
+  {dt:9.70,type:'RESULT',text:'Task 130 ✓ Worker-4 (Result: 900)', worker:'Worker-4',pathB:true},
+  {dt:10.30,type:'RESULT',text:'Task 131 ✓ Worker-2 (Result: 930)', worker:'Worker-2',pathB:true},
+  {dt:10.50,type:'RESULT',text:'Task 132 ✓ Worker-3 (Result: 960)', worker:'Worker-3',pathB:true},
+  {dt:10.70,type:'RESULT',text:'Task 133 ✓ Worker-4 (Result: 990)', worker:'Worker-4',pathB:true},
+  {dt:11.30,type:'RESULT',text:'Task 134 ✓ Worker-2 (Result:1020)', worker:'Worker-2',pathB:true},
+  {dt:11.50,type:'RESULT',text:'Task 135 ✓ Worker-3 (Result:1050)', worker:'Worker-3',pathB:true},
+  {dt:11.70,type:'RESULT',text:'Task 136 ✓ Worker-4 (Result:1080)', worker:'Worker-4',pathB:true},
+  {dt:12.30,type:'RESULT',text:'Task 137 ✓ Worker-2 (Result:1110)', worker:'Worker-2',pathB:true},
+  {dt:12.50,type:'RESULT',text:'Task 138 ✓ Worker-3 (Result:1140)', worker:'Worker-3',pathB:true},
+  {dt:12.70,type:'RESULT',text:'Task 139 ✓ Worker-4 (Result:1170)', worker:'Worker-4',pathB:true},
+  {dt:13.30,type:'RESULT',text:'Task 140 ✓ Worker-2 (Result:1200)', worker:'Worker-2',pathB:true},
+  {dt:13.50,type:'RESULT',text:'Task 141 ✓ Worker-3 (Result:1230)', worker:'Worker-3',pathB:true},
+  {dt:13.70,type:'RESULT',text:'Task 142 ✓ Worker-4 (Result:1260)', worker:'Worker-4',pathB:true},
+  {dt:14.30,type:'RESULT',text:'Task 143 ✓ Worker-2 (Result:1290)', worker:'Worker-2',pathB:true},
+  {dt:14.50,type:'RESULT',text:'Task 144 ✓ Worker-3 (Result:1320)', worker:'Worker-3',pathB:true},
+  {dt:14.70,type:'RESULT',text:'Task 145 ✓ Worker-4 (Result:1350)', worker:'Worker-4',pathB:true},
+  {dt:15.30,type:'RESULT',text:'Task 146 ✓ Worker-2 (Result:1380)', worker:'Worker-2',pathB:true},
+  {dt:15.50,type:'RESULT',text:'Task 147 ✓ Worker-3 (Result:1410)', worker:'Worker-3',pathB:true},
+  {dt:15.70,type:'RESULT',text:'Task 148 ✓ Worker-4 (Result:1440)', worker:'Worker-4',pathB:true},
+  {dt:16.40,type:'RESULT',text:'Task 149 ✓ Worker-2 (Result:1470)', worker:'Worker-2',pathB:true},
+  {dt:16.60,type:'RESULT',text:'Task 150 ✓ Worker-3 (Result:1500)', worker:'Worker-3',pathB:true},
+  {dt:17.50,type:'DONE',  text:'ALL DONE in 17.5s — W-2: 17, W-3: 17, W-4: 16 — SDN rerouted at t=4s, 0 tasks lost'},
+];
+
+// ─── TC9: Real — overload steering, 20 tasks, 7.5s — from terminal output ───
+const TC9=[
+  {dt:0.00,type:'DISPATCH_START',text:'20 tasks queued — 3 workers connected'},
+  {dt:0.10,type:'PATH_INFO',    text:'Paths: master ↔ W-2/W-3/W-4 via [1,2,4] (Path A)'},
+  {dt:0.50,type:'RESULT',text:'Task 101 ✓ Worker-2 (Result: 30)',  worker:'Worker-2',pathB:false},
+  {dt:0.70,type:'RESULT',text:'Task 102 ✓ Worker-3 (Result: 60)',  worker:'Worker-3',pathB:false},
+  {dt:0.90,type:'RESULT',text:'Task 103 ✓ Worker-4 (Result: 90)',  worker:'Worker-4',pathB:false},
+  {dt:1.60,type:'WORKER_OVERLOAD',text:'Worker-2 OVERLOADED (in-flight=3) → SDN notify → steer to low-delay path',worker:'Worker-2'},
+  {dt:1.65,type:'REROUTE',     text:'REROUTE master ↔ W-2: [1,2,4] → [1,3,4]'},
+  {dt:1.90,type:'WORKER_OVERLOAD',text:'Worker-3 OVERLOADED (in-flight=3) → SDN notify → steer to low-delay path',worker:'Worker-3'},
+  {dt:1.95,type:'REROUTE',     text:'REROUTE master ↔ W-3: [1,2,4] → [1,3,4]'},
+  {dt:2.10,type:'RESULT',text:'Task 104 ✓ Worker-2 (Result: 120)', worker:'Worker-2',pathB:true},
+  {dt:2.20,type:'WORKER_OVERLOAD',text:'Worker-4 OVERLOADED (in-flight=3) → SDN notify → steer to low-delay path',worker:'Worker-4'},
+  {dt:2.25,type:'REROUTE',     text:'REROUTE master ↔ W-4: [1,2,4] → [1,3,4] — all workers on fast path'},
+  {dt:2.40,type:'RESULT',text:'Task 105 ✓ Worker-3 (Result: 150)', worker:'Worker-3',pathB:true},
+  {dt:2.60,type:'RESULT',text:'Task 106 ✓ Worker-4 (Result: 180)', worker:'Worker-4',pathB:true},
+  {dt:3.10,type:'RESULT',text:'Task 107 ✓ Worker-2 (Result: 210)', worker:'Worker-2',pathB:true},
+  {dt:3.30,type:'RESULT',text:'Task 108 ✓ Worker-3 (Result: 240)', worker:'Worker-3',pathB:true},
+  {dt:3.50,type:'RESULT',text:'Task 109 ✓ Worker-4 (Result: 270)', worker:'Worker-4',pathB:true},
+  {dt:4.10,type:'RESULT',text:'Task 110 ✓ Worker-2 (Result: 300)', worker:'Worker-2',pathB:true},
+  {dt:4.30,type:'RESULT',text:'Task 111 ✓ Worker-3 (Result: 330)', worker:'Worker-3',pathB:true},
+  {dt:4.50,type:'RESULT',text:'Task 112 ✓ Worker-4 (Result: 360)', worker:'Worker-4',pathB:true},
+  {dt:5.10,type:'RESULT',text:'Task 113 ✓ Worker-2 (Result: 390)', worker:'Worker-2',pathB:true},
+  {dt:5.30,type:'RESULT',text:'Task 114 ✓ Worker-3 (Result: 420)', worker:'Worker-3',pathB:true},
+  {dt:5.50,type:'WORKER_NORMAL',text:'Worker-4 back to NORMAL (in-flight=1) → restore Path A',worker:'Worker-4'},
+  {dt:5.55,type:'REROUTE',     text:'REROUTE master ↔ W-4: [1,3,4] → [1,2,4]'},
+  {dt:5.60,type:'RESULT',text:'Task 115 ✓ Worker-4 (Result: 450)', worker:'Worker-4',pathB:false},
+  {dt:6.10,type:'WORKER_NORMAL',text:'Worker-2 back to NORMAL (in-flight=1) → restore Path A',worker:'Worker-2'},
+  {dt:6.15,type:'REROUTE',     text:'REROUTE master ↔ W-2: [1,3,4] → [1,2,4]'},
+  {dt:6.20,type:'RESULT',text:'Task 116 ✓ Worker-2 (Result: 480)', worker:'Worker-2',pathB:false},
+  {dt:6.35,type:'WORKER_NORMAL',text:'Worker-3 back to NORMAL (in-flight=1) → restore Path A',worker:'Worker-3'},
+  {dt:6.40,type:'REROUTE',     text:'REROUTE master ↔ W-3: [1,3,4] → [1,2,4] — all back on default'},
+  {dt:6.45,type:'RESULT',text:'Task 117 ✓ Worker-3 (Result: 510)', worker:'Worker-3',pathB:false},
+  {dt:6.80,type:'RESULT',text:'Task 118 ✓ Worker-4 (Result: 540)', worker:'Worker-4',pathB:false},
+  {dt:7.10,type:'RESULT',text:'Task 119 ✓ Worker-2 (Result: 570)', worker:'Worker-2',pathB:false},
+  {dt:7.30,type:'RESULT',text:'Task 120 ✓ Worker-3 (Result: 600)', worker:'Worker-3',pathB:false},
+  {dt:7.50,type:'DONE',  text:'ALL DONE in 7.5s — W-2: 7, W-3: 7, W-4: 6'},
+];
+
+const SCENARIOS={
+  tc3:{label:'TC3 · Normal run — 20 tasks · 7.46s · W-2:7 W-3:7 W-4:6 · REAL data',events:TC3,total:20},
+  tc4:{label:'TC4 · Worker kill — Worker-2 pkill at t=3s · 9.74s · W-2:2 W-3:9 W-4:9 · REAL data',events:TC4,total:20},
+  tc7:{label:'TC7 · Link failure — s1↔s2 down at t=4s · 50 tasks · 17.5s · REAL data',events:TC7,total:50},
+  tc9:{label:'TC9 · Overload steer — 20 tasks · 7.5s · W-2:7 W-3:7 W-4:6 · REAL data',events:TC9,total:20},
+};
+
+function applyEvent(ev){
+  addEvent(ev.type,ev.text,ev.dt||0);
+
+  if(ev.type==='RESULT'){
+    doneCount++;
+    document.getElementById('s-done').textContent=doneCount;
+    if(ev.worker) animateTask(ev.worker,ev.pathB||workerOnB[ev.worker]||false,'#4ade80');
+  }
+  if(ev.type==='WORKER_OVERLOAD'&&ev.worker){
+    setWorkerState(ev.worker,'overloaded');
+    setNodeColor({'Worker-2':'h2','Worker-3':'h3','Worker-4':'h4'}[ev.worker],'#fbbf24');
+    workerOnB[ev.worker]=true;
+    setLink('s1-s3','B');setLink('s3-s4','B');
+  }
+  if(ev.type==='WORKER_NORMAL'&&ev.worker){
+    setWorkerState(ev.worker,'alive');
+    setNodeColor({'Worker-2':'h2','Worker-3':'h3','Worker-4':'h4'}[ev.worker],'#4ade80');
+    workerOnB[ev.worker]=false;
+    // Only restore Path B links to idle if no other worker still overloaded AND not link-forced
+    const anyOver=Object.values(workerLoad).some(v=>v==='overloaded');
+    const pathADown=linkSt['s1-s2']==='down'||linkSt['s2-s4']==='down';
+    if(!anyOver&&!pathADown){setLink('s1-s3','');setLink('s3-s4','');}
+  }
+  if((ev.type==='WORKER_DEAD'||ev.type==='WORKER_KILL')&&ev.worker){
+    setWorkerState(ev.worker,'dead');
+    setNodeColor({'Worker-2':'h2','Worker-3':'h3','Worker-4':'h4'}[ev.worker],'#f87171');
+    activeWorkers--;
+    document.getElementById('s-workers').textContent=activeWorkers;
+  }
+  if(ev.type==='LINK_DOWN'){
+    setLink('s1-s2','down');setLink('s2-s4','down');
+    setNodeColor('s2','#f87171');
+  }
+  if(ev.type==='REROUTE'){
+    const pathADown=linkSt['s1-s2']==='down'||linkSt['s2-s4']==='down';
+    const anyOver=Object.values(workerLoad).some(v=>v==='overloaded');
+    if(pathADown||anyOver){setLink('s1-s3','B');setLink('s3-s4','B');}
+    if(!pathADown){setLink('s1-s2','A');setLink('s2-s4','A');}
+  }
+  if(ev.type==='LINK_UP'){
+    setLink('s1-s2','A');setLink('s2-s4','A');
+    setLink('s1-s3','');setLink('s3-s4','');
+    setNodeColor('s2','#4a5568');
+  }
+  if(ev.type==='DISPATCH_START'){
+    setWorkerState('Worker-2','alive');setWorkerState('Worker-3','alive');setWorkerState('Worker-4','alive');
+    workerOnB={'Worker-2':false,'Worker-3':false,'Worker-4':false};
+    setLink('s1-s2','A');setLink('s2-s4','A');
+    document.getElementById('status-badge').textContent='Running';
+    document.getElementById('status-badge').style.cssText='background:#1a3d2a;color:var(--green)';
+  }
+  if(ev.type==='DONE'){
+    const m=ev.text.match(/(\d+\.?\d*)s/);
+    document.getElementById('s-tct').textContent=m?m[1]:'?';
+    document.getElementById('status-badge').textContent='Done ✓';
+    document.getElementById('status-badge').style.cssText='background:#1e2a5e;color:var(--accent)';
+    playing=false;document.getElementById('play-btn').textContent='▶ Play';
+  }
+  updatePathInd();
+}
+
+function loadScenario(name){
+  currentScenario=name;resetAll();
+  document.querySelectorAll('.controls .btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-'+name).classList.add('active');
+  const s=SCENARIOS[name];
+  document.getElementById('scenario-label').textContent=s.label;
+  events=s.events;
+  document.getElementById('play-btn').textContent='▶ Play';
+  playing=false;
+}
+function playPause(){
+  if(!currentScenario){alert('Select a scenario first!');return;}
+  if(playing){playing=false;clearTimeout(timer);document.getElementById('play-btn').textContent='▶ Play';return;}
+  playing=true;document.getElementById('play-btn').textContent='⏸ Pause';
+  scheduleNext();
+}
+function scheduleNext(){
+  if(!playing||stepIdx>=events.length){playing=false;document.getElementById('play-btn').textContent='▶ Play';return;}
+  const ev=events[stepIdx],prev=stepIdx>0?events[stepIdx-1]:{dt:0};
+  const delay=Math.max(0,(ev.dt-prev.dt)*1000/speed);
+  timer=setTimeout(()=>{applyEvent(ev);stepIdx++;scheduleNext();},delay);
+}
+function resetAll(){
+  clearTimeout(timer);playing=false;stepIdx=0;doneCount=0;activeWorkers=3;
+  workerLoad={'Worker-2':'idle','Worker-3':'idle','Worker-4':'idle'};
+  workerOnB={'Worker-2':false,'Worker-3':false,'Worker-4':false};
+  document.getElementById('play-btn').textContent='▶ Play';
+  document.getElementById('event-log').innerHTML='';
+  document.getElementById('s-done').textContent='0';
+  document.getElementById('s-workers').textContent='3';
+  document.getElementById('s-tct').textContent='—';
+  document.getElementById('status-badge').textContent='Ready';
+  document.getElementById('status-badge').style.cssText='background:#1a3d2a;color:var(--green)';
+  document.getElementById('path-ind').className='path-indicator path-a';
+  document.getElementById('path-ind').textContent='Active: Path A (default)';
+  buildTopology();
+  ['Worker-2','Worker-3','Worker-4'].forEach(w=>{
+    const m={'Worker-2':'ws-2','Worker-3':'ws-3','Worker-4':'ws-4'};
+    document.getElementById(m[w]).className='ws';
+    document.getElementById(m[w].replace('ws','wt')).textContent='idle';
+  });
+}
+function setSpeed(s){
+  speed=s;
+  document.querySelectorAll('.speed-btn').forEach(b=>b.classList.toggle('active',b.textContent===s+'×'||(b.textContent==='½×'&&s===0.5)));
+}
+
+buildTopology();
+</script>
+</body>
+</html>
