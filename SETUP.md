@@ -64,6 +64,6 @@ sudo python3 topology.py
 ## 6. Clone the repo into the VM
 
 ```bash
-git clone https://github.com/AkshatBongale/project-29-sdn-task-system.git
-cd project-29-sdn-task-system
+git clone https://github.com/AkshatBongale/sdn-master-worker-tcp.git
+cd sdn-master-worker-tcp
 ```
